@@ -1,6 +1,8 @@
 package com.hardcoredungeon.levels
 
+import com.hardcoredungeon.actors.mobs.Mob
 import com.hardcoredungeon.engine.Point
+import com.hardcoredungeon.items.Item
 import kotlin.random.Random
 
 /**
@@ -11,15 +13,21 @@ class Level(val width: Int = 50, val height: Int = 50, val depth: Int = 1) {
     private val tiles: Array<Array<Tile>>
     var entrance: Point = Point(0, 0)
     var exit: Point = Point(0, 0)
+    val rooms: MutableList<Room> = mutableListOf()
+
+    val mobs: MutableList<Mob> = mutableListOf()
+    val items: MutableList<Item> = mutableListOf()
 
     init {
         tiles = Array(height) { Array(width) { Tile(TileType.WALL, true) } }
         generate()
+        spawnMobs()
+        spawnItems()
     }
 
     private fun generate() {
         // Simple room-based generation for now
-        val rooms = mutableListOf<Room>()
+        rooms.clear()
         val maxRooms = 15
         val minRoomSize = 4
         val maxRoomSize = 10
@@ -110,6 +118,61 @@ class Level(val width: Int = 50, val height: Int = 50, val depth: Int = 1) {
 
     fun isValid(x: Int, y: Int): Boolean {
         return x in 0 until width && y in 0 until height
+    }
+
+    fun getRandomFloorTile(): Point? {
+        // Find all floor tiles
+        val floorTiles = mutableListOf<Point>()
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                val tile = getTile(x, y)
+                if (!tile.solid && tile.type == TileType.FLOOR) {
+                    floorTiles.add(Point(x, y))
+                }
+            }
+        }
+        return floorTiles.randomOrNull()
+    }
+
+    fun getMobAt(x: Int, y: Int): Mob? {
+        return mobs.find { it.pos.x == x && it.pos.y == y && it.isAlive }
+    }
+
+    fun getItemAt(x: Int, y: Int): Item? {
+        return items.find { it.pos.x == x && it.pos.y == y }
+    }
+
+    private fun spawnMobs() {
+        val mobCount = Random.nextInt(8, 15)
+
+        for (i in 0 until mobCount) {
+            val pos = getRandomFloorTile() ?: continue
+
+            // Don't spawn at entrance
+            if (pos.x == entrance.x && pos.y == entrance.y) continue
+
+            // Don't spawn on existing mob
+            if (getMobAt(pos.x, pos.y) != null) continue
+
+            val mob = MobFactory.createMob(depth)
+            mob.pos = pos
+            mobs.add(mob)
+        }
+    }
+
+    private fun spawnItems() {
+        val itemCount = Random.nextInt(3, 8)
+
+        for (i in 0 until itemCount) {
+            val pos = getRandomFloorTile() ?: continue
+
+            // Don't spawn at entrance
+            if (pos.x == entrance.x && pos.y == entrance.y) continue
+
+            val item = ItemFactory.createRandomItem(depth)
+            item.pos = pos
+            items.add(item)
+        }
     }
 }
 
