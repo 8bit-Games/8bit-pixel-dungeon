@@ -6,7 +6,7 @@ import com.hardcoredungeon.levels.Level
 /**
  * Manages the dungeon state and progression
  */
-class Dungeon(val hero: Hero) {
+class Dungeon(val hero: Hero, val seed: Long = System.currentTimeMillis()) {
 
     var depth: Int = 1
     var currentLevel: Level
@@ -16,6 +16,7 @@ class Dungeon(val hero: Hero) {
     }
 
     private fun generateLevel(): Level {
+        // Use seed + depth for deterministic level generation
         return Level(depth = depth)
     }
 

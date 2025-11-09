@@ -22,7 +22,12 @@ import kotlin.math.max
 /**
  * Main game scene where gameplay happens
  */
-class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
+class GameScene(
+    game: HardcoreDungeon,
+    heroClass: HeroClass,
+    private val isDaily: Boolean = false,
+    private val seed: Long = System.currentTimeMillis()
+) : BaseScene(game) {
 
     private val camera = OrthographicCamera()
     private val batch = SpriteBatch()
@@ -42,8 +47,8 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
         // Create hero
         hero = Hero(heroClass)
 
-        // Initialize dungeon
-        dungeon = Dungeon(hero)
+        // Initialize dungeon with seed
+        dungeon = Dungeon(hero, seed)
         level = dungeon.currentLevel
 
         // Place hero at entrance
@@ -54,6 +59,13 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
         GameLog.clear()
         GameLog.positive("Welcome to Hardcore Dungeon!")
         GameLog.info("You are a ${heroClass.title}. Good luck!")
+
+        if (isDaily) {
+            GameLog.info("Daily Challenge Mode - Good luck!")
+        }
+
+        // Start tracking stats
+        com.hardcoredungeon.engine.GameStats.startRun()
 
         Gdx.app.log("GameScene", "Started game with ${heroClass.title}")
     }
@@ -244,7 +256,13 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
         if (!mob.isAlive) {
             GameLog.positive("You defeated ${mob.name}!")
             hero.gainExp(mob.expValue)
-            hero.gold += (1..5).random()
+
+            val goldEarned = (1..5).random()
+            hero.gold += goldEarned
+
+            // Track stats
+            com.hardcoredungeon.engine.GameStats.recordKill(hero.heroClass, mob.name.contains("Boss") || mob.name.contains("Demon"))
+            com.hardcoredungeon.engine.GameStats.recordGold(goldEarned)
 
             // Drop loot
             if ((0..100).random() < 30) {
@@ -261,6 +279,16 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
             if (hero.inventory.add(item)) {
                 level.items.remove(item)
                 GameLog.positive("Picked up ${item.name}")
+
+                // Track stats
+                com.hardcoredungeon.engine.GameStats.recordItemCollected()
+
+                // Check inventory achievement
+                if (hero.inventory.isFull()) {
+                    com.hardcoredungeon.engine.Achievements.unlock(
+                        com.hardcoredungeon.engine.Achievements.Achievement.FULL_INVENTORY
+                    )
+                }
             } else {
                 GameLog.warning("Inventory full!")
             }
@@ -277,6 +305,9 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
                 hero.inventory.remove(food)
             }
             GameLog.positive("You eat ${food.name}. Hunger restored!")
+
+            // Track stats
+            com.hardcoredungeon.engine.GameStats.recordFoodEaten()
         } else {
             GameLog.warning("You have no food!")
         }
@@ -295,12 +326,19 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
     }
 
     private fun endPlayerTurn() {
+        // Track turn
+        com.hardcoredungeon.engine.GameStats.recordTurn()
+
         // Apply hunger
         hero.hunger -= 1
         if (hero.hunger <= 0) {
             hero.hp -= 1
             GameLog.error("You are starving!")
             if (hero.hp <= 0) {
+                // Achievement for starving
+                com.hardcoredungeon.engine.Achievements.unlock(
+                    com.hardcoredungeon.engine.Achievements.Achievement.STARVE
+                )
                 gameOver("You starved to death!")
                 return
             }
@@ -317,12 +355,25 @@ class GameScene(game: HardcoreDungeon, heroClass: HeroClass) : BaseScene(game) {
         if (!hero.isAlive) {
             gameOver("You were killed!")
         }
+
+        // Check depth achievements
+        com.hardcoredungeon.engine.Achievements.checkDepthAchievement(dungeon.depth)
     }
 
     private fun gameOver(message: String) {
         GameLog.error(message)
         GameLog.error("Game Over!")
         Gdx.app.log("GameScene", message)
+
+        // End run and record stats
+        com.hardcoredungeon.engine.GameStats.endRun(dungeon.depth, hero.heroClass, won = false)
+
+        // Record daily challenge score if applicable
+        if (isDaily) {
+            val score = com.hardcoredungeon.engine.Challenge.calculateScore(dungeon.depth, hero.gold)
+            com.hardcoredungeon.engine.DailyChallenge.recordScore(dungeon.depth, score)
+        }
+
         // Small delay then return to title
         Thread.sleep(1000)
         game.screen = TitleScene(game)
