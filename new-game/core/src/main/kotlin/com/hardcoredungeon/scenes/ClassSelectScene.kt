@@ -50,6 +50,7 @@ class ClassSelectScene(game: HardcoreDungeon) : BaseScene(game) {
 
         font.color = Color.WHITE
         font.draw(batch, "UP/DOWN to select, ENTER to confirm", centerX - 200, 50f)
+        font.draw(batch, "[S] Customize Skin  [ESC] Back", centerX - 150, 25f)
 
         batch.end()
 
@@ -62,6 +63,9 @@ class ClassSelectScene(game: HardcoreDungeon) : BaseScene(game) {
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
             game.screen = GameScene(game, classes[selectedClass])
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.S)) {
+            game.screen = SkinSelectionScene(game, classes[selectedClass])
         }
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
             game.screen = TitleScene(game)
